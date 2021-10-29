@@ -53,5 +53,10 @@ The model achieves the following performance on [Medical Segmentation Decathlon]
 | Hausdorff Distance (HD95)   |     2.509 | 20000    |
 | Average Surface Distance   |     0.8844 | 18000   |
 
+Here are how the metrics look like versus an average of every 250 iterations:
+
+![Evaluation Metrics Results](../templates/static/EvaluationMetrics.jpg)
+
+
 ## Contributing
 Feedback and/or contributions welcome! Send us a pull request or contact us at dlgroup28@gmail.com.
