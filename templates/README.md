@@ -1,62 +1,57 @@
->📋  A template README.md for code accompanying a Machine Learning paper
+# Implementation of UNETR: Transformers for 3D Medical Image Segmentation
 
-# My Paper Title
-
-This repository is the official implementation of [My Paper Title](https://arxiv.org/abs/2030.12345). 
-
->📋  Optional: include a graphic explaining your approach/main result, bibtex entry, link to demos, blog posts and tutorials
+This repository is an implementation of [UNETR: Transformers for 3D Medical Image
+Segmentation](https://arxiv.org/pdf/2103.10504v1.pdf) using PyTorch and MONAI. 
 
 ## Requirements
 
 To install requirements:
 
 ```setup
-pip install -r requirements.txt
+python 3.7+ needed
+
+pip3 install torch torchvision
+pip3 install monai
 ```
 
->📋  Describe how to set up the environment, e.g. pip/conda/docker commands, download datasets, etc...
+## Training and Evaluation
 
-## Training
-
-To train the model(s) in the paper, run this command:
+To train and evaluate the model(s) in the paper, run this command:
 
 ```train
-python train.py --input-data <path_to_data> --alpha 10 --beta 20
+python train_spleen.py
 ```
-
->📋  Describe how to train the models, with example commands on how to train the models in your paper, including the full training procedure and appropriate hyperparameters.
-
-## Evaluation
-
-To evaluate my model on ImageNet, run:
-
-```eval
-python eval.py --model-file mymodel.pth --benchmark imagenet
-```
-
->📋  Describe how to evaluate the trained models on benchmarks reported in the paper, give commands that produce the results (section below).
 
 ## Pre-trained Models
 
 You can download pretrained models here:
 
-- [My awesome model](https://drive.google.com/mymodel.pth) trained on ImageNet using parameters x,y,z. 
+- [UNETR](https://drive.google.com/file/d/1dKuJCcOTNAppF-GgEM0Sgiq9Qn8VmeZz) trained on Medical Segmentation Decathlon Spleen Task. 
 
->📋  Give a link to where/how the pretrained models can be downloaded and how they were trained (if applicable).  Alternatively you can have an additional column in your results table with a link to the models.
+The following hyperparameters were used during the model’s implementation process:
+
+| Parameter | Description  | Value |
+| ------------------ |---------------- | -------------- |
+| Hidden Layer Size  |     Dimension of hidden layer          |      768       |
+| Feature Size       |     Transformer’s embedding size          |      16        |
+| Dropout Rate  |     Transformer dropout rate        |      0.1        |
+| Attention heads  |     Number of attention heads for transformer         |      12        |
+| Weight Decay | Adam weight decay to prevent overfitting | 0.00000001       |
+| Iterations | Number of times the algorithm's parameters are updated | 25000       |
+| Learning Rate | The learning rate | 0.0001      |
+| Transformer MLP Size | Dimension of feed-forward layer | 3072      |
+| Patch | Size for Patches | 16*16*16     |
 
 ## Results
 
-Our model achieves the following performance on :
+The model achieves the following performance on [Medical Segmentation Decathlon](http://medicaldecathlon.com/) Spleen Task:
 
-### [Image Classification on ImageNet](https://paperswithcode.com/sota/image-classification-on-imagenet)
-
-| Model name         | Top 1 Accuracy  | Top 5 Accuracy |
-| ------------------ |---------------- | -------------- |
-| My awesome model   |     85%         |      95%       |
-
->📋  Include a table of results from your paper, and link back to the leaderboard for clarity and context. If your main result is a figure, include that figure and link to the command or notebook to reproduce it. 
-
+| Metric       | Result  | Iteration
+| ------------------ |---------| ------- |
+| Loss Values   |     0.0209 | 24000       |
+| Dice Similarity Coefficient (DSC)  |     0.9665 | 25000       |
+| Hausdorff Distance (HD95)   |     2.509 | 20000    |
+| Average Surface Distance   |     0.8844 | 18000   |
 
 ## Contributing
-
->📋  Pick a licence and describe how to contribute to your code repository. 
+Feedback and/or contributions welcome! Send us a pull request or contact us at dlgroup28@gmail.com.
