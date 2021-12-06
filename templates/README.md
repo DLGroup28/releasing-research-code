@@ -60,8 +60,16 @@ The model achieves the following performance on [Medical Segmentation Decathlon]
 
 Here are how the metrics look like versus an average of every 250 iterations:
 
-![Evaluation Metrics Results](../templates/static/EvaluationMetrics.jpg)
+![Spleen Results](../templates/static/EvaluationMetrics.jpg)
 
+The model achieved the best dice metric of 0.7955 and loss of 0.2636 at epoch 217 and it took a total time of 93438.3144 seconds on the [Medical Segmentation Decathlon](http://medicaldecathlon.com/) Brain Tumour Task. Here are how the metrics look like:
+![Brain Tumour Results](../templates/static/BrainTumour.jpeg)
+
+The results on the Beyond the Cranial Vault Abdomen data set are as shown below. The model achieved the best dice metric of 0.7928 at epoch 24500 and minimum loss value of 0.56656 at epoch 18000.
+![BTCV Results](../templates/static/BTCV.jpeg)
+
+The results on the [Medical Segmentation Decathlon](http://medicaldecathlon.com/) Liver Tumour Task data set are as shown below. The model achieved the best dice metric of 0.76 at epoch 71000.
+![Liver Tumour Results](../templates/static/Liver.jpeg)
 
 ## Contributing
 Feedback and/or contributions welcome! Send us a pull request or contact us at dlgroup28@gmail.com.
