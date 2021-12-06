@@ -16,10 +16,15 @@ pip3 install monai
 
 ## Training and Evaluation
 
-To train and evaluate the model(s) in the paper, run this command:
+To train and evaluate the model(s) in the paper, run command in this format:
 
 ```train
-python train_spleen.py
+python {file}.py
+```
+
+Example:
+```train
+python btcv.py
 ```
 
 ## Pre-trained Models
