@@ -69,7 +69,7 @@ The results on the Beyond the Cranial Vault Abdomen data set are as shown below.
 ![BTCV Results](../templates/static/BTCV.jpeg)
 
 The results on the [Medical Segmentation Decathlon](http://medicaldecathlon.com/) Liver Tumour Task data set are as shown below. The model achieved the best dice metric of 0.76 at epoch 71000.
-![Liver Tumour Results](../templates/static/Liver.jpeg)
+![Liver Tumour Results](../templates/static/LiverTumour.png)
 
 ## Contributing
 Feedback and/or contributions welcome! Send us a pull request or contact us at dlgroup28@gmail.com.
