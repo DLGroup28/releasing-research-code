@@ -83,41 +83,41 @@ from monai.data import (
 # In[8]:
 
 
-#Define composing to make transformation
-train_transform = Compose(
+# Define composing to make transformation
+transform_train = Compose(
     [
         # load 4 Nifti images and stack them together
         LoadImaged(keys=["image", "label"]),
-        EnsureChannelFirstd(keys="image"),
         ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
+        EnsureChannelFirstd(keys="image"),
         Spacingd(
             keys=["image", "label"],
             pixdim=(1.0, 1.0, 1.0),#spacing
             mode=("bilinear", "nearest"),
         ),
-        Orientationd(keys=["image", "label"], axcodes="RAS"),
         RandSpatialCropd(keys=["image", "label"], roi_size=[128, 128, 128], random_size=False),#size of images 128*128*128
+        Orientationd(keys=["image", "label"], axcodes="RAS"),
         RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=0),
         RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=1),
         RandFlipd(keys=["image", "label"], prob=0.5, spatial_axis=2),
-        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
         RandScaleIntensityd(keys="image", factors=0.1, prob=1.0),
         RandShiftIntensityd(keys="image", offsets=0.1, prob=1.0),
+        NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
         EnsureTyped(keys=["image", "label"]),
     ]
 )
-val_transform = Compose(
+transform_validation = Compose(
     [
-        LoadImaged(keys=["image", "label"]),
         EnsureChannelFirstd(keys="image"),
+        LoadImaged(keys=["image", "label"]),
         ConvertToMultiChannelBasedOnBratsClassesd(keys="label"),
         Spacingd(
             keys=["image", "label"],
             pixdim=(1.0, 1.0, 1.0),#spacing
             mode=("bilinear", "nearest"),
         ),
-        Orientationd(keys=["image", "label"], axcodes="RAS"),
         NormalizeIntensityd(keys="image", nonzero=True, channel_wise=True),
+        Orientationd(keys=["image", "label"], axcodes="RAS"),
         EnsureTyped(keys=["image", "label"]),
     ]
 )
@@ -129,23 +129,23 @@ val_transform = Compose(
 #loading data
 data_dir = os.getcwd() +"/Task01_BrainTumour"
 
-train_images = sorted(
+images_train = sorted(
     glob.glob(os.path.join(data_dir, "imagesTr", "*.nii.gz")))
 
-train_labels = sorted(
+labels_train = sorted(
     glob.glob(os.path.join(data_dir, "labelsTr", "*.nii.gz")))
 
 data_dicts = [
     {"image": image_name, "label": label_name}
-    for image_name, label_name in zip(train_images, train_labels)
+    for image_name, label_name in zip(images_train, labels_train)
 ]
-train_files, val_files = data_dicts[:-97], data_dicts[-97:]#80/20 split ratio
+files_train, files_validation = data_dicts[:-97], data_dicts[-97:]#80/20 split ratio
 
 
 # In[10]:
 
 
-train_files
+files_train
 
 
 # In[11]:
@@ -153,16 +153,16 @@ train_files
 
 #loading and caching data
 b_size = 1#batch size
-train_ds = CacheDataset(
-    data=train_files, transform=train_transform,
+ds_train = CacheDataset(
+    data=files_train, transform=transform_train,
     cache_rate=0.0, num_workers=4)
 
-train_loader = DataLoader(train_ds, batch_size=b_size, shuffle=True, num_workers=4)
+loader_train = DataLoader(ds_train, batch_size=b_size, shuffle=True, num_workers=4)
 
-val_ds = CacheDataset(
-    data=val_files, transform=val_transform, cache_rate=0.0, num_workers=4)
+ds_validation = CacheDataset(
+    data=files_validation, transform=transform_validation, cache_rate=0.0, num_workers=4)
 
-val_loader = DataLoader(val_ds, batch_size = 1, num_workers=4)
+loader_validation  = DataLoader(ds_validation, batch_size = 1, num_workers=4)
 
 
 # ## Model UNETR_R
@@ -181,12 +181,12 @@ class Conv_Encod(nn.Module):
     '''
     def __init__(
         self,
-        size_Conv: int,
+        conv_size : int,
         input_channels: int, # number of input channels, which is euqal to 3
         output_channels: int, # number of output channel, which is euqal to 3
         kernel_size: int, # kernel size. In the ViT paper defined as 3
         stride: int = 1, #default stride value
-        norm_name: str = 'batch', #layer normalization type based on the model's graph
+        normalization_type : str = 'batch', #layer normalization type based on the model's graph
     ):
         
         super().__init__() #initialize the class
@@ -210,9 +210,9 @@ class Conv_Encod(nn.Module):
         stride_status = np.atleast_1d(stride) #stride value for contraction or expansion(down or up sampling)
         if not np.all(stride_status == 1):
             self.contraction = True #it is in the contraction(downsampling) side
-        self.normalization1 = get_norm_layer(norm_name, size_Conv, output_channels)#layer normalization
-        self.normalization2 = get_norm_layer(norm_name, size_Conv, output_channels)#layer normalization
-        self.normalization3 = get_norm_layer(norm_name, size_Conv, output_channels)#layer normalization
+        self.normalization1 = get_norm_layer(normalization_type , conv_size , output_channels)#layer normalization
+        self.normalization2 = get_norm_layer(normalization_type , conv_size , output_channels)#layer normalization
+        self.normalization3 = get_norm_layer(normalization_type , conv_size , output_channels)#layer normalization
 
         #define network structure
     def forward(self, input_value):
@@ -243,32 +243,32 @@ class Conv_DecConv_Encod(nn.Module):
     '''
     def __init__(
         self,
-        size_Conv: int, #spatial size of conv
+        conv_size : int, #spatial size of conv
         input_channels: int, #number of channels in the input image
         output_channels: int,#number of channels in the output image
         number_layer: int, #number of Conv layers
         kernel_size: Union[Sequence[int], int],# based on the paper's suggestion
         stride: Union[Sequence[int], int],#defaultstride
         upsample_stride: Union[Sequence[int], int], # Based on the model's graph
-        norm_name: str = 'batch'#layer normalization type based on the model's graph
+        normalization_type : str = 'batch'#layer normalization type based on the model's graph
                  ):
         
         super().__init__()#initialize the class
 
         # define the transpose conv
-        self.transp_conv_layer = get_conv_layer(size_Conv, input_channels, output_channels, upsample_stride, stride, conv_only=True, is_transposed=True) 
+        self.transpose_conv_layer  = get_conv_layer(conv_size , input_channels, output_channels, upsample_stride, stride, conv_only=True, is_transposed=True) 
         #list two modules to make them as a block
         self.tr_blocks = nn.ModuleList
         (
          [nn.Sequential(
-        get_conv_layer(size_Conv,output_channels,output_channels,upsample_stride,upsample_stride,conv_only=True,is_transposed=True),
-        UnetResBlock(spatial_dims=size_Conv, in_channels=output_channels, out_channels=output_channels, kernel_size=kernel_size,stride=stride,norm_name=norm_name))
+        get_conv_layer(conv_size ,output_channels,output_channels,upsample_stride,upsample_stride,conv_only=True,is_transposed=True),
+        UnetResBlock(spatial_dims=conv_size , in_channels=output_channels, out_channels=output_channels, kernel_size=kernel_size,stride=stride,normalization_type =normalization_type ))
         for i in range(number_layer) # 12 trasnformers
          ] 
         )
     #network structure
     def forward(self, input_x):
-        input_x = self.transp_conv_layer(input_x)# deconv the value
+        input_x = self.transpose_conv_layer (input_x)# deconv the value
         for tr_blk in self.tr_blocks:
             input_x = tr_blk(input_x)
         return input_x
@@ -285,21 +285,21 @@ class decoder_expansion_blk(nn.Module):
     """
     def __init__(
         self,
-        size_Conv: int,#spatial size of conv
+        conv_size : int,#spatial size of conv
         input_channels: int, #number of channels in the input image
         output_channels: int,#number of channels in the output image
         kernel_size: Union[Sequence[int], int],#based on the paper's suggestion
         upsample_stride: Union[Sequence[int], int],# Based on the model's graph
-        norm_name: str = 'batch'#layer normalization type based on the model's graph
+        normalization_type : str = 'batch'#layer normalization type based on the model's graph
     ):
     
         super().__init__()#initialize the class
         
-        self.transp_conv_layer = get_conv_layer(size_Conv, input_channels, output_channels, kernel_size=upsample_stride, conv_only=True,is_transposed=True) 
-        self.conv_block = UnetResBlock(size_Conv,output_channels+output_channels,output_channels,kernel_size,stride=1,norm_name=norm_name)
+        self.transpose_conv_layer  = get_conv_layer(conv_size , input_channels, output_channels, kernel_size=upsample_stride, conv_only=True,is_transposed=True) 
+        self.conv_block = UnetResBlock(conv_size ,output_channels+output_channels,output_channels,kernel_size,stride=1,normalization_type =normalization_type )
     #define architecture - number of skip connections is equal to channels
     def forward(self, input_value, skip_connection):
-        output_decoder = self.transp_conv_layer(input_value)# deconv
+        output_decoder = self.transpose_conv_layer (input_value)# deconv
         output_decoder = torch.cat((output, skip_connection), dim=1)
         output_decoder = self.conv_block(output_decoder)
         return output_decoder
@@ -313,12 +313,12 @@ class output(nn.Module):
     #initialize class
     def __init__(
         self, 
-        size_Conv: int,#spatial size of conv
+        conv_size : int,#spatial size of conv
         input_channels: int, #number of channels in the input image
-        output_channels: int,#number of channels in the output image
+        output_channels: int, #number of channels in the output image
     ):
         super().__init__()#initialize the class
-        self.conv_output = get_conv_layer(size_Conv, input_channels, output_channels, kernel_size=1, stride=1, bias=True, conv_only=True)
+        self.conv_output = get_conv_layer(conv_size , input_channels, output_channels, kernel_size=1, stride=1, bias=True, conv_only=True)
      #network architecture
     def forward(self, input_value):
         return self.conv_output(input_value)
@@ -344,43 +344,11 @@ class linear_projection(nn.Module):
         return feature
 
 
-# In[ ]:
-
-
-# from monai.networks.nets.vit import ViT# import ViT architecture from MONAI
-# '''
-# UNETR is is similar to the popular CNN-based architecture known as UNET. 
-# The proposed architecture add transformer to the decoder section. 
-# The transfromer and its idea is achieved from the paper "An image is worth 16x16 words: Transformers for image recognition at scale.
-# The used transformer called ViT-B16 with the parameters of L = 12 layers, an embedding size of K = 768 and patch size of 16*16*16 that is implemented in MONAI
-# The used ViT parameters introduced in MONAI are as follows:
-
-#         in_channels (int) – dimension of input channels.
-
-#         img_size (Union[Sequence[int], int]) – dimension of input image.
-
-#         patch_size (Union[Sequence[int], int]) – dimension of patch size.
-
-#         hidden_size (int) – dimension of hidden layer.
-
-#         mlp_dim (int) – dimension of feedforward layer.
-
-#         num_layers (int) – number of transformer blocks.
-
-#         num_heads (int) – number of attention heads.
-
-#         pos_embed (str) – position embedding layer type.
-
-#         classification (bool) – bool argument to determine if classification is used.
-
-#         dropout_rate (float) – faction of the input units to drop.
-# '''
-# # Define the imported transformers parameters based on the selected paper and its original paper
 transformer_ViT = ViT(
-    in_channels = 1, # this is for BTCV data 
+    in_channels = 1,
     img_size = (96, 96, 96),# patch size images 
     patch_size = (96, 96, 96), # Define the Patch size as advised by the paper
-+ # this is suggested based on the original and selected paper
+ # this is suggested based on the original and selected paper
     pos_embed = 'conv', # In the original paper it is considered inside the convolutional layer
     classification = False, #this is not used for classifcation
     dropout_rate = 0.1 # suggested by the original paper
@@ -398,14 +366,14 @@ class UNETR_R(nn.Module):
     input_channels_UNETR #number of channels in the input image(e.g., CT Spleen is 1 and MRI is 4)
     output_channels_UNETR #number of channels in the input image(e.g., CT Spleen is 2 and MRI is 4)
     img_size_UNETR #size of the output image (defined by paper as (96,96,96)
-    norm_name #normalization layer type
+    normalization_type  #normalization layer type
     """
     def __init__(
         self,
         input_channels_UNETR: int,#number of channels in the input image
         output_channels_UNETR: int,#number of channels in the output image
-        img_size_UNETR: (int,int,int), #size of the output image
-        norm_name: str='batch', #normalization layer defined as batch normalization
+        img_size_UNETR, #size of the output image
+        normalization_type : str='batch', #normalization layer defined as batch normalization
          ):
 
         super().__init__()# initialize the class
@@ -417,15 +385,15 @@ class UNETR_R(nn.Module):
         #setup the layers of the block as showsn in the above figure
         #encoder section(compression)
         self.transformer_ViT = ViT(input_channels_UNETR,img_size_UNETR,self.patch_size,768,3072,12,12,'perceptron',classification=False,dropout_rate=0.1, spatial_dims=3) 
-        self.encoder_3 = Conv_Encod(size_Conv=3,input_channels=input_channels_UNETR,output_channels=16,kernel_size=3,stride=1,norm_name= 'batch')
-        self.encoder_6 = Conv_DecConv_Encod(size_Conv=3,input_channels=768,output_channels=32,number_layer=2,kernel_size=3,stride=1,upsample_stride=2,norm_name='batch')
-        self.encoder_9 = Conv_DecConv_Encod(size_Conv=3,input_channels=768,output_channels=64,number_layer=1,kernel_size=3,stride=1,upsample_stride=2,norm_name='batch')
-        self.encoder_12 = Conv_DecConv_Encod(size_Conv=3,input_channels=768,output_channels=128,number_layer=0,kernel_size=3,stride=1,upsample_stride=2,norm_name='batch')
+        self.encoder_3 = Conv_Encod(conv_size =3,input_channels=input_channels_UNETR,output_channels=16,kernel_size=3,stride=1,normalization_type = 'batch')
+        self.encoder_6 = Conv_DecConv_Encod(conv_size =3,input_channels=768,output_channels=32,number_layer=2,kernel_size=3,stride=1,upsample_stride=2,normalization_type ='batch')
+        self.encoder_9 = Conv_DecConv_Encod(conv_size =3,input_channels=768,output_channels=64,number_layer=1,kernel_size=3,stride=1,upsample_stride=2,normalization_type ='batch')
+        self.encoder_12 = Conv_DecConv_Encod(conv_size =3,input_channels=768,output_channels=128,number_layer=0,kernel_size=3,stride=1,upsample_stride=2,normalization_type ='batch')
         #decoder section(expanstion)
-        self.decoder_12 = decoder_expansion_blk(size_Conv=3,input_channels=768,output_channels=128,kernel_size=3,upsample_stride=2,norm_name='batch')
-        self.decoder_9 = decoder_expansion_blk(size_Conv=3,input_channels=128,output_channels=64,kernel_size=3,upsample_stride=2,norm_name='batch')
-        self.decoder_6 = decoder_expansion_blk(size_Conv=3,input_channels=64,output_channels=32,kernel_size=3,upsample_stride=2,norm_name='batch')
-        self.decoder_3 = decoder_expansion_blk(size_Conv=3,input_channels=32,output_channels=16,kernel_size=3,upsample_stride=2,norm_name='batch')
+        self.decoder_12 = decoder_expansion_blk(conv_size =3,input_channels=768,output_channels=128,kernel_size=3,upsample_stride=2,normalization_type ='batch')
+        self.decoder_9 = decoder_expansion_blk(conv_size =3,input_channels=128,output_channels=64,kernel_size=3,upsample_stride=2,normalization_type ='batch')
+        self.decoder_6 = decoder_expansion_blk(conv_size =3,input_channels=64,output_channels=32,kernel_size=3,upsample_stride=2,normalization_type ='batch')
+        self.decoder_3 = decoder_expansion_blk(conv_size =3,input_channels=32,output_channels=16,kernel_size=3,upsample_stride=2,normalization_type ='batch')
         self.output_UNETR_R = output(3, input_channels=16, output_channels=output_channels_UNETR)
     
     #define the architecture of the class
@@ -464,7 +432,7 @@ model = UNETR_R(
     mlp_dim=3072,
     num_heads=12,
     pos_embed="perceptron",
-    norm_name="instance",
+    normalization_type ="instance",
     res_block=True,
     dropout_rate=0.0,
 ).to(device)
@@ -521,7 +489,7 @@ best_metric_epoch = -1
 best_metrics_epochs_and_time = [[], [], []]
 epoch_loss_values = []
 metric_values = []
-metric_values_tc = []
+metric_values_tc = [] # metrics for the 3 types of brain tumour data
 metric_values_wt = []
 metric_values_et = []
 
@@ -532,7 +500,7 @@ for epoch in range(max_epochs):
     model.train()
     epoch_loss = 0
     step = 0
-    for batch_data in train_loader:
+    for batch_data in loader_train:
         step_start = time.time()
         step += 1
         inputs, labels = (
@@ -555,7 +523,7 @@ for epoch in range(max_epochs):
         model.eval()
         with torch.no_grad():
 
-            for val_data in val_loader:
+            for val_data in loader_validation :
                 val_inputs, val_labels = (
                     val_data["image"].to(device),
                     val_data["label"].to(device),
@@ -600,23 +568,6 @@ print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_e
 
 # In[15]:
 
-
-#plot and visualize different metrics
-plt.figure("train", (12, 6))
-plt.subplot(1, 2, 1)
-plt.title("Epoch Average Loss")
-x = [i + 1 for i in range(len(epoch_loss_values))]
-y = epoch_loss_values
-plt.xlabel("epoch")
-plt.plot(x, y, color="red")
-plt.subplot(1, 2, 2)
-plt.title("Val Mean Dice")
-x = [val_interval * (i + 1) for i in range(len(metric_values))]
-y = metric_values
-plt.xlabel("epoch")
-plt.plot(x, y, color="green")
-plt.show()
-
 plt.figure("train", (18, 6))
 plt.subplot(1, 3, 1)
 plt.title("Val Mean Dice TC")
@@ -639,6 +590,24 @@ plt.plot(x, y, color="purple")
 plt.show()
 
 
+#plot and visualize different metrics
+plt.figure("train", (12, 6))
+plt.subplot(1, 2, 1)
+plt.title("Epoch Average Loss")
+x = [i + 1 for i in range(len(epoch_loss_values))]
+y = epoch_loss_values
+plt.xlabel("epoch")
+plt.plot(x, y, color="red")
+plt.subplot(1, 2, 2)
+plt.title("Val Mean Dice")
+x = [val_interval * (i + 1) for i in range(len(metric_values))]
+y = metric_values
+plt.xlabel("epoch")
+plt.plot(x, y, color="green")
+plt.show()
+
+
+
 # ## Checking the Results for Brain Tumour Detection
 
 # In[17]:
@@ -651,7 +620,7 @@ model.load_state_dict(
 model.eval()
 with torch.no_grad():
     # select one image to evaluate and visualize the model output
-    val_input = val_ds[6]["image"].unsqueeze(0).to(device)
+    val_input = ds_validation[6]["image"].unsqueeze(0).to(device)
     roi_size = (128, 128, 64)
     sw_batch_size = 4
     val_output = inference(val_input)
@@ -660,14 +629,14 @@ with torch.no_grad():
     for i in range(4):
         plt.subplot(1, 4, i + 1)
         plt.title(f"image channel {i}")
-        plt.imshow(val_ds[6]["image"][i, :, :, 70].detach().cpu(), cmap="gray")
+        plt.imshow(ds_validation[6]["image"][i, :, :, 70].detach().cpu(), cmap="gray")
     plt.show()
     # visualize the 3 channels label corresponding to this image
     plt.figure("label", (18, 6))
     for i in range(3):
         plt.subplot(1, 3, i + 1)
         plt.title(f"label channel {i}")
-        plt.imshow(val_ds[6]["label"][i, :, :, 70].detach().cpu())
+        plt.imshow(ds_validation[6]["label"][i, :, :, 70].detach().cpu())
     plt.show()
     # visualize the 3 channels model output corresponding to this image
     plt.figure("output", (18, 6))
