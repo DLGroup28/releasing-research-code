@@ -72,13 +72,13 @@ print_config()
 torch.version.cuda 
 
 
-# ## Setup transforms for training and validation
+# ## Setup transforms for training and validation_training
 
 # In[10]:
 
 
 #Define Transformation functions
-train_transforms = Compose(
+train_transformation_functions = Compose(
     [
         LoadImaged(keys=["image", "label"]),
         AddChanneld(keys=["image", "label"]),
@@ -88,45 +88,8 @@ train_transforms = Compose(
             mode=("bilinear", "nearest"),
         ),
         Orientationd(keys=["image", "label"], axcodes="RAS"),
-        ScaleIntensityRanged(#intensity normalization
-            keys=["image"],
-            a_min=-175,
-            a_max=250,
-            b_min=0.0,
-            b_max=1.0,
-            clip=True,
-        ),
+        NormalizedIntensity(),
         CropForegroundd(keys=["image", "label"], source_key="image"),#crop the volumentric foreground image
-        RandCropByPosNegLabeld(
-            keys=["image", "label"],
-            label_key="label",
-            spatial_size=(96, 96, 96),#size of the croped image
-            pos=1,
-            neg=1,
-            num_samples=4,#number of samples in each crop
-            image_key="image",
-            image_threshold=0,
-        ),
-        RandFlipd(#randflip in dimension x
-            keys=["image", "label"],
-            spatial_axis=[0],
-            prob=0.10,
-        ),
-        RandFlipd(#randflip in dimension y
-            keys=["image", "label"],
-            spatial_axis=[1],
-            prob=0.10,
-        ),
-        RandFlipd(# randflip in dimention z
-            keys=["image", "label"],
-            spatial_axis=[2],
-            prob=0.10,
-        ),
-        RandRotate90d(# rand 90 degree rotationally
-            keys=["image", "label"],
-            prob=0.10,
-            max_k=3,
-        ),
         RandShiftIntensityd(#shift in intensity
             keys=["image"],
             offsets=0.10,
@@ -135,20 +98,13 @@ train_transforms = Compose(
         ToTensord(keys=["image", "label"]),# make it to tensor to be given to the device
     ]
 )
-#validation tranformers
-val_transforms = Compose(
+#validation_training tranformers
+validation_training_transformation_functions = Compose(
     [
         LoadImaged(keys=["image", "label"]),#load images
         AddChanneld(keys=["image", "label"]),#make sure the channel has images and labels
-        Spacingd(#define the validation spacings
-            keys=["image", "label"],
-            pixdim=(1.5, 1.5, 2.0),
-            mode=("bilinear", "nearest"),
-        ),
-        Orientationd(keys=["image", "label"], axcodes="RAS"),#orienting the validation images
-        ScaleIntensityRanged(#range of spacing and the intensity
-            keys=["image"], a_min=-175, a_max=250, b_min=0.0, b_max=1.0, clip=True
-        ),
+        Orientationd(keys=["image", "label"], axcodes="RAS"),#orienting the validation_training images
+        NormalizedIntensity(),
         CropForegroundd(keys=["image", "label"], source_key="image"),#crop the foreground images
         ToTensord(keys=["image", "label"]),#make it ready to be given to the tensors
     ]
@@ -159,27 +115,27 @@ val_transforms = Compose(
 
 
 #define the data loader and cache rate for data
-data_dir = "DL/data/"
+data_root = "DL/data/"
 split_JSON = "dataset_0.json"
-datasets = data_dir + split_JSON
-datalist = load_decathlon_datalist(datasets, True, "training")
-val_files = load_decathlon_datalist(datasets, True, "validation")
-train_ds = CacheDataset(
+data = data_root + split_JSON
+datalist = load_decathlon_datalist(data, True, "training")
+validation_training_files = load_decathlon_datalist(data, True, "validation_training")
+train_data = CacheDataset(
     data=datalist,
-    transform=train_transforms,
-    cache_num=24,#number of cach data
+    transform=train_transformation_functions,
+    cache_num=32,#number of cach data
     cache_rate=1.0,#cache rate
-    num_workers=8,#number of CPUs in caching data
+    num_workers=12,#number of CPUs in caching data
 )
 #define the training data
-train_loader = DataLoader(
-    train_ds, batch_size=1, shuffle=True, num_workers=8, pin_memory=True
+training_loader = DataLoader(
+    train_data, batch_size=6, shuffle=True, num_workers=12, pin_memory=True
 )
-val_ds = CacheDataset(
-    data=val_files, transform=val_transforms, cache_num=6, cache_rate=1.0, num_workers=4
+validation_training_data = CacheDataset(
+    data=validation_training_files, transform=validation_training_transformation_functions, cache_num=12, cache_rate=1.0, num_workers=12
 )
-val_loader = DataLoader(
-    val_ds, batch_size=1, shuffle=False, num_workers=4, pin_memory=True
+validation_training_loader = DataLoader(
+    validation_training_data, batch_size=6, shuffle=False, num_workers=12, pin_memory=True
 )
 
 
@@ -189,20 +145,20 @@ val_loader = DataLoader(
 
 
 #Visualizing sample of labels
-case_num = 1
-img_name = os.path.split(val_ds[case_num]["image_meta_dict"]["filename_or_obj"])[1]
-img = val_ds[case_num]["image"]
-label = val_ds[case_num]["label"]
-img_shape = img.shape
+image_number = 1
+image_name = os.path.split(validation_training_data[image_number]["image_meta_dict"]["filename_or_obj"])[1]
+image = validation_training_data[image_number]["image"]
+label = validation_training_data[image_number]["label"]
+image_shape = image.shape
 label_shape = label.shape
-print(f"image shape: {img_shape}, label shape: {label_shape}")
-plt.figure("image", (18, 6))
+print(f"image shape: {image_shape}, label shape: {label_shape}")
+plt.figure("image", (24, 12))
 plt.subplot(1, 2, 1)
 plt.title("image")
-plt.imshow(img[0, :, :, slice_map[img_name]].detach().cpu(), cmap="gray")
+plt.imshow(image[0, :, :, slice_map[image_name]].detach().cpu(), cmap="gray")
 plt.subplot(1, 2, 2)
 plt.title("label")
-plt.imshow(label[0, :, :, slice_map[img_name]].detach().cpu())
+plt.imshow(label[0, :, :, slice_map[image_name]].detach().cpu())
 plt.show()
 
 
@@ -400,7 +356,7 @@ class linear_projection(nn.Module):
 
 #         in_channels (int) – dimension of input channels.
 
-#         img_size (Union[Sequence[int], int]) – dimension of input image.
+#         image_size (Union[Sequence[int], int]) – dimension of input image.
 
 #         patch_size (Union[Sequence[int], int]) – dimension of patch size.
 
@@ -421,7 +377,7 @@ class linear_projection(nn.Module):
 # # Define the imported transformers parameters based on the selected paper and its original paper
 transformer_ViT = ViT(
     in_channels = 1, # this is for BTCV data 
-    img_size = (96, 96, 96),# patch size images 
+    image_size = (96, 96, 96),# patch size images 
     patch_size = (96, 96, 96), # Define the Patch size as advised by the paper
 + # this is suggested based on the original and selected paper
     pos_embed = 'conv', # In the original paper it is considered inside the convolutional layer
@@ -442,26 +398,26 @@ class UNETR_R(nn.Module):
     The inputs are as follows:
     input_channels_UNETR #number of channels in the input image(e.g., CT Spleen is 1 and MRI is 4)
     output_channels_UNETR #number of channels in the input image(e.g., CT Spleen is 2 and MRI is 4)
-    img_size_UNETR #size of the output image (defined by paper as (96,96,96)
+    image_size_UNETR #size of the output image (defined by paper as (96,96,96)
     norm_name #normalization layer type
     """
     def __init__(
         self,
         input_channels_UNETR: int,#number of channels in the input image
         output_channels_UNETR: int,#number of channels in the output image
-        img_size_UNETR: (int,int,int), #size of the output image
+        image_size_UNETR: (int,int,int), #size of the output image
         norm_name: str='batch', #normalization layer defined as batch normalization
          ):
 
         super().__init__()# initialize the class
-        img_size = ensure_tuple_rep((96, 96, 96), 3) #defined by the paper
+        image_size = ensure_tuple_rep((96, 96, 96), 3) #defined by the paper
         self.patch_size = ensure_tuple_rep(16, 3)
-        self.feat_size = tuple(img_d // p_d for img_d, p_d in zip(img_size, self.patch_size))
+        self.feat_size = tuple(image_d // p_d for image_d, p_d in zip(image_size, self.patch_size))
         self.embedding_size = 768 #embedding size C = 768
         
         #setup the layers of the block as showsn in the above figure
         #encoder section(compression)
-        self.transformer_ViT = ViT(input_channels_UNETR,img_size_UNETR,self.patch_size,768,3072,12,12,'perceptron',classification=False,dropout_rate=0.1, spatial_dims=3) 
+        self.transformer_ViT = ViT(input_channels_UNETR,image_size_UNETR,self.patch_size,768,3072,12,12,'perceptron',classification=False,dropout_rate=0.1, spatial_dims=3) 
         self.encoder_3 = Conv_Encod(size_Conv=3,input_channels=input_channels_UNETR,output_channels=16,kernel_size=3,stride=1,norm_name= 'batch')
         self.encoder_6 = Conv_DecConv_Encod(size_Conv=3,input_channels=768,output_channels=32,number_layer=2,kernel_size=3,stride=1,upsample_stride=2,norm_name='batch')
         self.encoder_9 = Conv_DecConv_Encod(size_Conv=3,input_channels=768,output_channels=64,number_layer=1,kernel_size=3,stride=1,upsample_stride=2,norm_name='batch')
@@ -498,7 +454,7 @@ class UNETR_R(nn.Module):
 model = UNETR_R(
     input_channels_UNETR=1,# input channel 
     output_channels_UNETR=14, #binary - foreground and background
-    img_size_UNETR=(96, 96, 96), #volume sizes
+    image_size_UNETR=(128, 128, 128), #volume sizes
     norm_name='batch', #layer normalization
 ).to(torch.device("cuda:0")) #check if the cuda and gpu available
 
@@ -512,97 +468,97 @@ dice_metric = DiceMetric(include_background=False, reduction="mean") #defien the
 # In[ ]:
 
 
-#define validation data and calculate the mentioned metrics
-def validation(validation_epoch):
+#define validation_training data and calculate the mentioned metrics
+def validation_training(validation_training_epoch):
     model.eval()#make a list 
-    dice_vals = list() #make a list  
+    dice_validationidation = list() #make a list  
     with torch.no_grad(): #disabled gradient calculation
-        for step, batch in enumerate(validation_epoch):
-            val_inputs, val_labels = (batch["image"].cuda(), batch["label"].cuda())
-            val_outputs = sliding_window_inference(val_inputs, (96, 96, 96), 1, model)
-            val_labels_list = (val_labels)
-            val_labels_convert = [
-                post_label(val_label_tensor) for val_label_tensor in val_labels_list
+        for step, batch in enumerate(validation_training_epoch):
+            validation_inputs, validation_labels = (batch["image"].cuda(), batch["label"].cuda())
+            val_outputs = sliding_window_inference(validation_inputs, (128, 128, 128), 6, model)
+            validation_labels_list = (validation_labels)
+            validation_labels_convert = [
+                post_label(validation_label_tensor) for validation_label_tensor in validation_labels_list
             ]
-            val_outputs_list = decollate_batch(val_outputs)
-            val_output_convert = [
-                post_pred(val_pred_tensor) for val_pred_tensor in val_outputs_list
+            validation_outputs_list = decollate_batch(val_outputs)
+            validation_output_convert = [
+                post_pred(validation_pred_tensor) for validation_pred_tensor in validation_outputs_list
             ]
             #define the evalautaion metrics
-            dice_metric(y_pred=val_output_convert, y=val_labels_convert)                      
+            dice_metric(y_pred=validation_output_convert, y=validation_labels_convert)                      
             dice = dice_metric.aggregate().item()
-            dice_vals.append(dice)
+            dice_validationidation.append(dice)
             #reset the metrics
         HD95_metric.reset()
         dice_metric.reset()
         ASD_metric.reset()
         #make average of the metrics
-    mean_dice_val = np.mean(dice_vals)
+    mean_dice_validation = np.mean(dice_validationidation)
     mean_HD95_vals = np.mean(HD95_vals)
     mean_ASD_vals = np.mean(ASD_vals)
     #return metrics
-    return mean_dice_val, mean_HD95_vals, mean_ASD_vals
+    return mean_dice_validation, mean_HD95_vals, mean_ASD_vals
 
 #define model's training
-def train_model(step, train_loading, dice_val_best, step_best):
-    model.train_model()
+def training_model(step, train_loading, dice_validationidation_best, step_best):
+    model.training_model()
     epoch_loss = 0
     step = 0
     #shows the steps
 #     epoch_iteration = tqdm(
-#         train_loader, desc="Training (X / X Steps) (loss_validation=X.X)", dynamic_ncols=True
+#         training_loader, desc="Training (X / X Steps) (loss_validation_training=X.X)", dynamic_ncols=True
 #     )
     for step, batch in enumerate(epoch_iteration):
         step += 1
         x, y = (batch["image"].cuda(), batch["label"].cuda())
         logit_map = model(x)
-        loss_validation = loss_function(logit_map, y)
-        loss_validation.backward()
-        epoch_loss += loss_validation.item()
+        loss_validation_training = loss_function(logit_map, y)
+        loss_validation_training.backward()
+        epoch_loss += loss_validation_training.item()
         optimizer.step()
         optimizer.zero_grad() #no gradient calculation
 
         if (
             step % eval_num == 0 and step != 0
-        ) or step == Iterations:
-#             validation_epoch = tqdm(
+        ) or step == EPOCHS:
+#             validation_training_epoch = tqdm(
                 
-#                 val_loader, desc="(X / X Steps)", dynamic_ncols=True
+#                 validation_training_loader, desc="(X / X Steps)", dynamic_ncols=True
 #             )
             #define the metrics
-            [dice_val, HD95_val, ASD_val] = validation(validation_epoch)
+            [dice_validation, HD95_val, ASD_val] = validation_training(validation_training_epoch)
             epoch_loss /= step
             #append values to each of the metrics
             epoch_loss_values.append(epoch_loss)
-            metric_values_DSC.append(dice_val)
+            metric_values_DSC.append(dice_validation)
             metric_values_HD95.append(HD95_val)
             metric_values_ASD.append(ASD_val)
             #we calculate the best dice as the most important metric in image segementation
-            if dice_val > dice_val_best:
-                dice_val_best = dice_val
+            if dice_validation > dice_validationidation_best:
+                dice_validationidation_best = dice_validation
                 step_best = step
                 torch.save(
-                    model.state_dict(), os.path.join(data_directory, "Best_BTCV_DSC_Model.pth")
+                    model.state_dict(), os.path.join(data_rootectory, "Best_BTCV_DSC_Model.pth")
                 )
         step += 1
-    return step, dice_val_best, step_best #return step, dice value and the best step for dice value
+    return step, dice_validationidation_best, step_best #return step, dice value and the best step for dice value
 
 #setting the parameters
-Iterations = 25000 #number of iterations based on the paper
+EPOCHS = 25000 #number of EPOCHS based on the paper
 eval_num = 500 #average is being calculated on every 250 samples
 post_label = AsDiscrete(to_onehot=True, n_classes=2)
 post_pred = AsDiscrete(argmax=True, to_onehot=True, n_classes=2)
 dice_metric = DiceMetric(include_background=True, reduction="mean", get_not_nans=False)
 step = 0
-dice_val_best = 0.0
+dice_validationidation_best = 0.0
 step_best = 0
 #define the metrics as a metrics
 epoch_loss_values = []
 metric_values_DSC = []
-#save the metrics until reaching to the maximum number of iterations
-while step < Iterations:
-    step, dice_val_best, step_best = train_model(
-        step, train_loader, dice_val_best, step_best
+#save the metrics until reaching to the maximum number of EPOCHS
+while step < EPOCHS:
+    step, dice_validationidation_best, step_best = training_model(
+        step, training_loader, dice_validationidation_best, step_best
     )
 
 
@@ -610,7 +566,7 @@ while step < Iterations:
 
 
 print(
-    f"train completed, best_metric: {dice_val_best:.4f} "
+    f"train completed, best_metric: {dice_validation_best:.4f} "
     f"at iteration: {global_step_best}"
 )
 
@@ -620,7 +576,7 @@ print(
 # In[22]:
 
 
-plt.figure("train", (12, 6))
+plt.figure("train", (18, 12))
 plt.subplot(1, 2, 1)
 plt.title("Iteration Average Loss")
 x = [eval_num * (i + 1) for i in range(len(epoch_loss_values))]
